@@ -2,6 +2,7 @@ package com.github.almostreliable.energymeter.network.packets;
 
 import com.github.almostreliable.energymeter.component.SideConfiguration;
 import com.github.almostreliable.energymeter.core.Constants.SYNC_FLAGS;
+import com.github.almostreliable.energymeter.meter.MeterDisplayMode;
 import com.github.almostreliable.energymeter.meter.MeterEntity;
 import com.github.almostreliable.energymeter.network.ServerToClientPacket;
 import com.github.almostreliable.energymeter.util.TypeEnums.ACCURACY;
@@ -12,11 +13,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
-
 import java.util.Objects;
 
 public class ClientSyncPacket extends ServerToClientPacket<ClientSyncPacket> {
-
     private BlockPos pos;
     private int flags;
     private CompoundTag sideConfig;
@@ -27,30 +26,24 @@ public class ClientSyncPacket extends ServerToClientPacket<ClientSyncPacket> {
     private ACCURACY accuracy;
     private int interval;
     private int threshold;
+    private MeterDisplayMode displayMode;
+    private CompoundTag gtSnapshot;
 
     @SuppressWarnings("java:S107")
-    public ClientSyncPacket(
-        BlockPos pos, int flags, SideConfiguration sideConfig, double transferRate, NUMBER_MODE numberMode,
-        STATUS status, MODE mode, ACCURACY accuracy, int interval, int threshold
-    ) {
-        this.pos = pos;
-        this.flags = flags;
-        this.sideConfig = sideConfig.serializeNBT();
-        this.transferRate = transferRate;
-        this.numberMode = numberMode;
-        this.status = status;
-        this.mode = mode;
-        this.accuracy = accuracy;
-        this.interval = interval;
-        this.threshold = threshold;
+    public ClientSyncPacket(BlockPos pos, int flags, SideConfiguration sideConfig, double transferRate,
+            NUMBER_MODE numberMode, STATUS status, MODE mode, ACCURACY accuracy, int interval, int threshold,
+            MeterDisplayMode displayMode, CompoundTag gtSnapshot) {
+        this.pos = pos; this.flags = flags; this.sideConfig = sideConfig.serializeNBT();
+        this.transferRate = transferRate; this.numberMode = numberMode; this.status = status; this.mode = mode;
+        this.accuracy = accuracy; this.interval = interval; this.threshold = threshold;
+        this.displayMode = displayMode; this.gtSnapshot = gtSnapshot;
     }
 
     public ClientSyncPacket() {}
 
     @Override
     public void encode(ClientSyncPacket packet, FriendlyByteBuf buffer) {
-        buffer.writeBlockPos(packet.pos);
-        buffer.writeInt(packet.flags);
+        buffer.writeBlockPos(packet.pos); buffer.writeInt(packet.flags);
         if ((packet.flags & SYNC_FLAGS.SIDE_CONFIG) != 0) buffer.writeNbt(packet.sideConfig);
         if ((packet.flags & SYNC_FLAGS.TRANSFER_RATE) != 0) buffer.writeDouble(packet.transferRate);
         if ((packet.flags & SYNC_FLAGS.NUMBER_MODE) != 0) buffer.writeInt(packet.numberMode.ordinal());
@@ -59,13 +52,13 @@ public class ClientSyncPacket extends ServerToClientPacket<ClientSyncPacket> {
         if ((packet.flags & SYNC_FLAGS.ACCURACY) != 0) buffer.writeInt(packet.accuracy.ordinal());
         if ((packet.flags & SYNC_FLAGS.INTERVAL) != 0) buffer.writeInt(packet.interval);
         if ((packet.flags & SYNC_FLAGS.THRESHOLD) != 0) buffer.writeInt(packet.threshold);
+        if ((packet.flags & SYNC_FLAGS.DISPLAY_MODE) != 0) buffer.writeInt(packet.displayMode.ordinal());
+        if ((packet.flags & SYNC_FLAGS.GT_SNAPSHOT) != 0) buffer.writeNbt(packet.gtSnapshot);
     }
 
     @Override
     public ClientSyncPacket decode(FriendlyByteBuf buffer) {
-        var packet = new ClientSyncPacket();
-        packet.pos = buffer.readBlockPos();
-        packet.flags = buffer.readInt();
+        var packet = new ClientSyncPacket(); packet.pos = buffer.readBlockPos(); packet.flags = buffer.readInt();
         if ((packet.flags & SYNC_FLAGS.SIDE_CONFIG) != 0) packet.sideConfig = Objects.requireNonNull(buffer.readNbt());
         if ((packet.flags & SYNC_FLAGS.TRANSFER_RATE) != 0) packet.transferRate = buffer.readDouble();
         if ((packet.flags & SYNC_FLAGS.NUMBER_MODE) != 0) packet.numberMode = NUMBER_MODE.values()[buffer.readInt()];
@@ -74,6 +67,8 @@ public class ClientSyncPacket extends ServerToClientPacket<ClientSyncPacket> {
         if ((packet.flags & SYNC_FLAGS.ACCURACY) != 0) packet.accuracy = ACCURACY.values()[buffer.readInt()];
         if ((packet.flags & SYNC_FLAGS.INTERVAL) != 0) packet.interval = buffer.readInt();
         if ((packet.flags & SYNC_FLAGS.THRESHOLD) != 0) packet.threshold = buffer.readInt();
+        if ((packet.flags & SYNC_FLAGS.DISPLAY_MODE) != 0) packet.displayMode = MeterDisplayMode.values()[buffer.readInt()];
+        if ((packet.flags & SYNC_FLAGS.GT_SNAPSHOT) != 0) packet.gtSnapshot = Objects.requireNonNull(buffer.readNbt());
         return packet;
     }
 
@@ -89,6 +84,8 @@ public class ClientSyncPacket extends ServerToClientPacket<ClientSyncPacket> {
             if ((packet.flags & SYNC_FLAGS.ACCURACY) != 0) tile.setAccuracy(packet.accuracy);
             if ((packet.flags & SYNC_FLAGS.INTERVAL) != 0) tile.setInterval(packet.interval);
             if ((packet.flags & SYNC_FLAGS.THRESHOLD) != 0) tile.setThreshold(packet.threshold);
+            if ((packet.flags & SYNC_FLAGS.DISPLAY_MODE) != 0) tile.setDisplayModeFromPacket(packet.displayMode);
+            if ((packet.flags & SYNC_FLAGS.GT_SNAPSHOT) != 0) tile.setGTSnapshot(packet.gtSnapshot);
         }
     }
 }

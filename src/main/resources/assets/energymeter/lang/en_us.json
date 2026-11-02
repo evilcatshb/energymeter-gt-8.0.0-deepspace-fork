@@ -71,6 +71,11 @@
 
   "mode.energymeter.transfer": "Transfer",
   "mode.energymeter.consumer": "Consumer",
+  "mode.energymeter.gt_adjacent": "GT Adjacent",
+  "mode.energymeter.gt_inline": "GT Inline",
+  "tooltip.energymeter.mode_gt_adjacent_desc": "Reads the adjacent GTCEu cable telemetry.",
+  "tooltip.energymeter.mode_gt_inline_desc": "Measures GT energy accepted through the meter.",
+  "label.energymeter.no_gt_reading": "No GT reading",
 
   "accuracy.energymeter.exact": "Exact",
   "accuracy.energymeter.interval": "Interval"

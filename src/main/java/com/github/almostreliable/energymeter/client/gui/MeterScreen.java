@@ -106,16 +106,26 @@ public class MeterScreen extends AbstractContainerScreen<MeterContainer> {
             TextUtils.translateAsString(TRANSLATE_TYPE.LABEL, TRANSFER_RATE_ID) + ':',
             UI_COLORS.GRAY
         );
-        var formattedFlow = TextUtils.formatEnergy(menu.getEntity().getTransferRate(),
-            menu.getEntity().getNumberMode() == NUMBER_MODE.LONG
-        );
-        GuiUtils.renderText(guiGraphics,
-            16,
-            37,
-            1.0f,
-            String.format("%s %s/t", formattedFlow.getA(), formattedFlow.getB()),
-            UI_COLORS.MINT
-        );
+        var entity = menu.getEntity();
+        if (entity.getDisplayMode().isGT()) {
+            if (entity.isGTSnapshotValid()) {
+                var formattedFlow = TextUtils.formatEnergy(entity.getGTTransferRate(), entity.getNumberMode() == NUMBER_MODE.LONG);
+                GuiUtils.renderText(guiGraphics, 16, 37, 1.0f,
+                    String.format("%s %s EU/t", formattedFlow.getA(), formattedFlow.getB()), UI_COLORS.MINT);
+            } else {
+                GuiUtils.renderText(guiGraphics, 16, 37, 1.0f, TextUtils.translateAsString(TRANSLATE_TYPE.LABEL, "no_gt_reading"), UI_COLORS.YELLOW);
+            }
+        } else {
+            var formattedFlow = TextUtils.formatEnergy(entity.getTransferRate(), entity.getNumberMode() == NUMBER_MODE.LONG);
+            GuiUtils.renderText(guiGraphics, 16, 37, 1.0f,
+                String.format("%s %s/t", formattedFlow.getA(), formattedFlow.getB()), UI_COLORS.MINT);
+        }
+
+        if (entity.getDisplayMode().isGT() && entity.isGTSnapshotValid()) {
+            var gt = entity.getGTSnapshot();
+            String detail = gt.getLong("voltage") + " V  " + gt.getLong("amperage") + " A  " + gt.getString("voltageTier");
+            GuiUtils.renderText(guiGraphics, 16, 44, 0.7f, detail, UI_COLORS.WHITE);
+        }
 
         // status
         GuiUtils.renderText(guiGraphics,
@@ -145,7 +155,7 @@ public class MeterScreen extends AbstractContainerScreen<MeterContainer> {
             16,
             85,
             1.0f,
-            TextUtils.translateAsString(TRANSLATE_TYPE.MODE, menu.getEntity().getMode().toString().toLowerCase()),
+            TextUtils.translateAsString(TRANSLATE_TYPE.MODE, menu.getEntity().getDisplayMode().toString().toLowerCase()),
             getModeColor()
         );
 
@@ -236,7 +246,7 @@ public class MeterScreen extends AbstractContainerScreen<MeterContainer> {
      * @return the color of the current mode
      */
     private int getModeColor() {
-        return menu.getEntity().getMode() == MODE.CONSUMER ? UI_COLORS.PURPLE : UI_COLORS.BLUE;
+        return switch (menu.getEntity().getDisplayMode()) { case CONSUMER -> UI_COLORS.PURPLE; case GT_ADJACENT -> UI_COLORS.MINT; case GT_INLINE -> UI_COLORS.ORANGE; default -> UI_COLORS.BLUE; };
     }
 
     /**

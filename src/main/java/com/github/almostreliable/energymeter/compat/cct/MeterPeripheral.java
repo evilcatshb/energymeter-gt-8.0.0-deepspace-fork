@@ -3,6 +3,8 @@ package com.github.almostreliable.energymeter.compat.cct;
 import com.almostreliable.energymeter.EnergyMeterConstants;
 import com.github.almostreliable.energymeter.compat.IMeterEntityObserver;
 import com.github.almostreliable.energymeter.meter.MeterEntity;
+import com.github.almostreliable.energymeter.compat.gtceu.GTCompat;
+import net.minecraftforge.fml.ModList;
 import dan200.computercraft.api.lua.LuaFunction;
 import dan200.computercraft.api.lua.MethodResult;
 import dan200.computercraft.api.peripheral.IComputerAccess;
@@ -129,4 +131,49 @@ public class MeterPeripheral implements IPeripheral, IMeterEntityObserver {
     public final MethodResult getFullSideConfig() {
         return MethodResult.of(entity.getSideConfig().asStringMap());
     }
-}
+
+    private Map<String, Object> gtSnapshot() {
+        if (!ModList.get().isLoaded("gtceu")) return Map.ofEntries(Map.entry("mode", "UNAVAILABLE"), Map.entry("valid", false), Map.entry("voltage", 0L), Map.entry("voltageTier", "UNKNOWN"), Map.entry("amperage", 0L), Map.entry("requestedAmperage", -1L), Map.entry("transferRate", 0.0), Map.entry("maxAmperage", -1L), Map.entry("maxVoltage", -1L), Map.entry("loadPercent", -1.0), Map.entry("worldTime", -1L));
+        return GTCompat.snapshot(entity);
+    }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTData() { return MethodResult.of(gtSnapshot()); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTVoltage() { return MethodResult.of(gtSnapshot().getOrDefault("voltage", 0L)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTVoltageTier() { return MethodResult.of(gtSnapshot().getOrDefault("voltageTier", "UNKNOWN")); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTAmperage() { return MethodResult.of(gtSnapshot().getOrDefault("amperage", 0L)); }
+
+    /** Returns -1 when the selected measurement mode has no requested-amperage concept. */
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTRequestedAmperage() { return MethodResult.of(gtSnapshot().getOrDefault("requestedAmperage", -1L)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTTransferRate() { return MethodResult.of(gtSnapshot().getOrDefault("transferRate", 0.0)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTMaxAmperage() { return MethodResult.of(gtSnapshot().getOrDefault("maxAmperage", -1L)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTMaxVoltage() { return MethodResult.of(gtSnapshot().getOrDefault("maxVoltage", -1L)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTLoadPercent() { return MethodResult.of(gtSnapshot().getOrDefault("loadPercent", -1.0)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getGTMeasurementMode() { return MethodResult.of(gtSnapshot().getOrDefault("mode", "UNAVAILABLE")); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult isGTMeasurementValid() { return MethodResult.of(gtSnapshot().getOrDefault("valid", false)); }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult setGTMeasurementMode(String mode) {
+        if (!ModList.get().isLoaded("gtceu")) return MethodResult.of(false, "GTCEu is not loaded");
+        String result = GTCompat.setMode(entity, mode);
+        return MethodResult.of(!result.startsWith("invalid"), result);
+    }}

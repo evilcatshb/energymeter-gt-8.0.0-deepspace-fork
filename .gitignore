@@ -87,4 +87,12 @@ gradle-app.setting
 
 # Project Specific
 src/generated
-src/test
+
+# Sky of Grind: DeepSpace local backups and diagnostics
+backups/
+*.BAK
+*.BAK_*
+*.backup
+*.backup_*
+*.log
+*-pre-*.BAK

@@ -24,7 +24,7 @@ public class MeterRenderer implements BlockEntityRenderer<MeterEntity> {
     private static final float OFFSET = 0.001f;
     private static final int MAX_DISTANCE = 30;
     private static final float HALF = .5f;
-    private static final int FULL_BRIGHTNESS = 0x00F0_0000;
+    private static final int FULL_BRIGHTNESS = 0x00F0_00F0;
     private final Font font;
 
     public MeterRenderer(Context context) {
@@ -78,13 +78,24 @@ public class MeterRenderer implements BlockEntityRenderer<MeterEntity> {
         stack.scale(PIXEL_SIZE, PIXEL_SIZE, 0);
 
         // format the current flow rate and draw it according to its size, so it's centered
-        var text = TextUtils.formatEnergy(entity.getTransferRate(), false);
-        var flowRate = text.getA();
-        var unit = text.getB() + "/t";
+        String flowRate;
+        String unit;
+        if (entity.getDisplayMode().isGT() && !entity.isGTSnapshotValid()) {
+            flowRate = "--";
+            unit = "EU/t";
+        } else {
+            var text = TextUtils.formatEnergy(entity.getDisplayMode().isGT() ? entity.getGTTransferRate() : entity.getTransferRate(), false);
+            flowRate = text.getA();
+            unit = entity.getDisplayMode().isGT() ? "EU/t" : text.getB() + "/t";
+        }
         // flow rate
         drawText(flowRate, -font.lineHeight - OFFSET, stack, buffer);
         // unit
         drawText(unit, OFFSET, stack, buffer);
+        if (entity.getDisplayMode().isGT() && entity.isGTSnapshotValid()) {
+            var gt = entity.getGTSnapshot();
+            drawText(gt.getLong("voltage") + "V " + gt.getLong("amperage") + "A", font.lineHeight + OFFSET, stack, buffer);
+        }
 
         stack.popPose();
     }
@@ -94,7 +105,7 @@ public class MeterRenderer implements BlockEntityRenderer<MeterEntity> {
         font.drawInBatch(text,
             font.width(text) / -2f,
             y,
-            ChatFormatting.WHITE.getColor(),
+            0xFFFF_FFFF,
             false,
             stack.last().pose(),
             buffer,

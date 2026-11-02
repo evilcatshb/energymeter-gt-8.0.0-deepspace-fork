@@ -60,5 +60,7 @@ public enum Constants {
         public static final int ACCURACY = 1 << 5;
         public static final int INTERVAL = 1 << 6;
         public static final int THRESHOLD = 1 << 7;
+        public static final int DISPLAY_MODE = 1 << 8;
+        public static final int GT_SNAPSHOT = 1 << 9;
     }
 }

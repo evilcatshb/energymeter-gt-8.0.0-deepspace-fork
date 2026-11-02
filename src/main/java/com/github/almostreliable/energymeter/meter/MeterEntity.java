@@ -4,6 +4,7 @@ import com.github.almostreliable.energymeter.compat.CapabilityAdapterFactory;
 import com.github.almostreliable.energymeter.compat.ICapabilityAdapter;
 import com.github.almostreliable.energymeter.compat.IMeterEntityObserver;
 import com.github.almostreliable.energymeter.compat.cct.MeterPeripheral;
+import com.github.almostreliable.energymeter.compat.gtceu.GTCompat;
 import com.github.almostreliable.energymeter.component.SideConfiguration;
 import com.github.almostreliable.energymeter.component.SidedEnergyStorage;
 import com.github.almostreliable.energymeter.core.Setup.Entities;
@@ -30,6 +31,7 @@ import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.network.PacketDistributor;
+import net.minecraftforge.fml.ModList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,6 +61,9 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
     private int interval = REFRESH_RATE;
     private int threshold = REFRESH_RATE;
     private double zeroThreshold;
+    private String gtMeasurementMode = "INLINE";
+    private MeterDisplayMode displayMode = MeterDisplayMode.TRANSFER;
+    private CompoundTag gtSnapshot = new CompoundTag();
 
     @SuppressWarnings("ThisEscapedInObjectConstruction")
     public MeterEntity(BlockPos pos, BlockState state) {
@@ -114,10 +119,7 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
                 numberMode = numberMode == NUMBER_MODE.SHORT ? NUMBER_MODE.LONG : NUMBER_MODE.SHORT;
                 syncData(SYNC_FLAGS.NUMBER_MODE);
             }
-            case MODE -> {
-                mode = mode == MODE.TRANSFER ? MODE.CONSUMER : MODE.TRANSFER;
-                syncData(SYNC_FLAGS.MODE);
-            }
+            case MODE -> advanceDisplayMode();
             case ACCURACY -> {
                 var flags = SYNC_FLAGS.ACCURACY;
                 if (accuracy == ACCURACY.EXACT) {
@@ -142,17 +144,7 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
      */
     public void syncData(int flags) {
         if (level == null || level.isClientSide) return;
-        var packet = new ClientSyncPacket(worldPosition,
-            flags,
-            sideConfig,
-            transferRate,
-            numberMode,
-            status,
-            mode,
-            accuracy,
-            interval,
-            threshold
-        );
+        var packet = new ClientSyncPacket(worldPosition, flags, sideConfig, transferRate, numberMode, status, mode, accuracy, interval, threshold, displayMode, gtSnapshot.copy());
         PacketHandler.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(worldPosition)),
             packet
         );
@@ -171,6 +163,9 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
         if (tag.contains(ACCURACY_ID)) accuracy = ACCURACY.values()[tag.getInt(ACCURACY_ID)];
         if (tag.contains(INTERVAL_ID)) interval = tag.getInt(INTERVAL_ID);
         if (tag.contains(THRESHOLD_ID)) threshold = tag.getInt(THRESHOLD_ID);
+        if (tag.contains("GTMeasurementMode")) gtMeasurementMode = com.github.almostreliable.energymeter.compat.gtceu.GTMeasurementMode.fromPersisted(tag.getString("GTMeasurementMode")).name();
+        displayMode = MeterDisplayMode.fromPersisted(tag.getString("MeterDisplayMode"), mode == MODE.CONSUMER ? MeterDisplayMode.CONSUMER : MeterDisplayMode.TRANSFER);
+        gtSnapshot = new CompoundTag(); // transient measurement
     }
 
     @Override
@@ -182,6 +177,8 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
         tag.putInt(ACCURACY_ID, accuracy.ordinal());
         tag.putInt(INTERVAL_ID, interval);
         tag.putInt(THRESHOLD_ID, threshold);
+        tag.putString("GTMeasurementMode", gtMeasurementMode);
+        tag.putString("MeterDisplayMode", displayMode.name());
     }
 
     @Override
@@ -195,11 +192,14 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
         tag.putInt(ACCURACY_ID, accuracy.ordinal());
         tag.putInt(INTERVAL_ID, interval);
         tag.putInt(THRESHOLD_ID, threshold);
+        tag.putString("GTMeasurementMode", gtMeasurementMode);
+        tag.putString("MeterDisplayMode", displayMode.name());
         return tag;
     }
 
     @Override
     public void setRemoved() {
+        if (ModList.get().isLoaded("gtceu")) GTCompat.invalidate(this);
         for (var observer : observers) {
             observer.onMeterTileRemoved(this);
         }
@@ -216,6 +216,9 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
         accuracy = ACCURACY.values()[tag.getInt(ACCURACY_ID)];
         interval = tag.getInt(INTERVAL_ID);
         threshold = tag.getInt(THRESHOLD_ID);
+        if (tag.contains("GTMeasurementMode")) gtMeasurementMode = com.github.almostreliable.energymeter.compat.gtceu.GTMeasurementMode.fromPersisted(tag.getString("GTMeasurementMode")).name();
+        displayMode = MeterDisplayMode.fromPersisted(tag.getString("MeterDisplayMode"), mode == MODE.CONSUMER ? MeterDisplayMode.CONSUMER : MeterDisplayMode.TRANSFER);
+        gtSnapshot = new CompoundTag();
     }
 
     public int receiveEnergy(int energy, boolean simulate) {
@@ -275,6 +278,7 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
             meterPeripheral.getLazyAdapter().invalidate();
         }
 
+        if (ModList.get().isLoaded("gtceu")) GTCompat.invalidate(this);
         super.invalidateCaps();
     }
 
@@ -282,6 +286,10 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
     @Override
     public <T> LazyOptional<T> getCapability(Capability<T> cap, @Nullable Direction direction) {
         if (!remove) {
+            if (ModList.get().isLoaded("gtceu")) {
+                var gtCapability = GTCompat.getCapability(this, cap, direction);
+                if (gtCapability != null) return gtCapability;
+            }
             if (cap.equals(ForgeCapabilities.ENERGY) && direction != null &&
                 sideConfig.get(direction) != IO_SETTING.OFF) {
                 return energyStorage.get(direction.ordinal()).cast();
@@ -349,6 +357,7 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
         if (level == null || level.isClientSide) return;
         if ((thresholdReached() || intervalReached()) && !energyRates.isEmpty()) calculateTransferRate();
         if (level.getGameTime() % REFRESH_RATE != 0) return;
+        if (ModList.get().isLoaded("gtceu") && displayMode.isGT()) GTCompat.refresh(this);
 
         // initial setup
         if (!setupDone) {
@@ -566,6 +575,41 @@ public class MeterEntity extends BlockEntity implements MenuProvider {
     public void setAccuracy(ACCURACY accuracy) {
         this.accuracy = accuracy;
     }
+
+    public String getGTMeasurementModeState() { return gtMeasurementMode; }
+    public void setGTMeasurementModeState(String mode) { gtMeasurementMode = "ADJACENT".equals(mode) ? "ADJACENT" : "INLINE"; setChanged(); }
+    public MeterDisplayMode getDisplayMode() { return displayMode; }
+    public void setDisplayModeFromPacket(MeterDisplayMode value) { if (value != null) displayMode = value; }
+    public void setDisplayModeFromGT(String mode) {
+        displayMode = "ADJACENT".equals(mode) ? MeterDisplayMode.GT_ADJACENT : MeterDisplayMode.GT_INLINE;
+        setChanged(); syncData(SYNC_FLAGS.DISPLAY_MODE | SYNC_FLAGS.MODE | SYNC_FLAGS.GT_SNAPSHOT);
+    }
+    public void advanceDisplayMode() {
+        if (level == null || level.isClientSide) return;
+        MeterDisplayMode next = displayMode.next();
+        if (next == MeterDisplayMode.GT_ADJACENT || next == MeterDisplayMode.GT_INLINE) {
+            String gtMode = next == MeterDisplayMode.GT_ADJACENT ? "ADJACENT" : "INLINE";
+            // GT modes must not inherit the legacy CONSUMER mode, which absorbs incoming energy.
+            mode = MODE.TRANSFER;
+            if (ModList.get().isLoaded("gtceu")) GTCompat.setMode(this, gtMode); else setGTMeasurementModeState(gtMode);
+            displayMode = next; clearGTSnapshot(); syncData(SYNC_FLAGS.DISPLAY_MODE | SYNC_FLAGS.MODE | SYNC_FLAGS.GT_SNAPSHOT);
+        } else {
+            displayMode = next; mode = next == MeterDisplayMode.CONSUMER ? MODE.CONSUMER : MODE.TRANSFER;
+            clearGTSnapshot();
+            updateNeighbors(); syncData(SYNC_FLAGS.DISPLAY_MODE | SYNC_FLAGS.MODE | SYNC_FLAGS.GT_SNAPSHOT);
+        }
+        setChanged();
+    }
+    public void clearGTSnapshot() { gtSnapshot = new CompoundTag(); }
+    public void setGTSnapshot(CompoundTag snapshot) { gtSnapshot = snapshot == null ? new CompoundTag() : snapshot.copy(); }
+    public CompoundTag getGTSnapshot() { return gtSnapshot.copy(); }
+    public boolean isGTSnapshotValid() { return gtSnapshot.getBoolean("valid"); }
+    public double getGTTransferRate() { return isGTSnapshotValid() ? gtSnapshot.getDouble("transferRate") : 0.0; }
+    public String getGTMeasurementMode() { return gtMeasurementMode; }
+
+    public void recordGTEnergy(double energy) { averageRate += energy; }
+
+    public void recordGTTransfer(long voltage, long amperage) { averageRate += (double) voltage * amperage; }
 
     public SideConfiguration getSideConfig() {
         return sideConfig;

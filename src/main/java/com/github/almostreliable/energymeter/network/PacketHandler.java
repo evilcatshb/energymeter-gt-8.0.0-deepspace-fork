@@ -13,7 +13,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 public final class PacketHandler {
 
     private static final ResourceLocation ID = TextUtils.getRL(Constants.NETWORK_ID);
-    private static final String PROTOCOL = "1";
+    private static final String PROTOCOL = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.ChannelBuilder
         .named(ID)
         .networkProtocolVersion(() -> PROTOCOL)

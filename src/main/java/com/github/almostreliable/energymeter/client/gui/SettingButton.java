@@ -49,7 +49,7 @@ public class SettingButton extends GenericButton {
     @Override
     protected void clickHandler() {
         PacketHandler.CHANNEL.sendToServer(new SettingUpdatePacket(setting));
-        container.getEntity().updateSetting(setting);
+        if (setting != SETTING.MODE) container.getEntity().updateSetting(setting);
         if (setting == SETTING.ACCURACY) {
             screen.getIntervalBox().reset();
             screen.getThresholdBox().reset();
@@ -75,7 +75,7 @@ public class SettingButton extends GenericButton {
 
     @Override
     protected TooltipBuilder getTooltipBuilder() {
-        return Screen.hasShiftDown() ? tooltipLong : tooltip;
+        return setupTooltip(Screen.hasShiftDown());
     }
 
     private TooltipBuilder setupTooltip(boolean longTooltip) {
@@ -94,13 +94,14 @@ public class SettingButton extends GenericButton {
                     .translate(TRANSLATE_TYPE.MODE, MODE.CONSUMER.toString().toLowerCase())
                     .append(":");
                 var style2 = consumer.getStyle().withColor(TextColor.fromRgb(UI_COLORS.PURPLE));
-                t
-                    .addBlankLine()
-                    .addComponent(transfer.withStyle(style1))
-                    .addDescription(settingKey + description2)
-                    .addBlankLine()
-                    .addComponent(consumer.withStyle(style2))
-                    .addDescription(settingKey + "_desc_3");
+                var adjacent = TextUtils.translate(TRANSLATE_TYPE.MODE, "gt_adjacent").append(":");
+                var style3 = adjacent.getStyle().withColor(TextColor.fromRgb(UI_COLORS.MINT));
+                var inline = TextUtils.translate(TRANSLATE_TYPE.MODE, "gt_inline").append(":");
+                var style4 = inline.getStyle().withColor(TextColor.fromRgb(UI_COLORS.ORANGE));
+                t.addBlankLine().addComponent(transfer.withStyle(style1)).addDescription(settingKey + description2)
+                    .addBlankLine().addComponent(consumer.withStyle(style2)).addDescription(settingKey + "_desc_3")
+                    .addBlankLine().addComponent(adjacent.withStyle(style3)).addDescription("mode_gt_adjacent_desc")
+                    .addBlankLine().addComponent(inline.withStyle(style4)).addDescription("mode_gt_inline_desc");
             }
             if (setting == SETTING.ACCURACY) {
                 var exact = TextUtils
@@ -131,7 +132,7 @@ public class SettingButton extends GenericButton {
                 ChatFormatting.WHITE
             ));
             case MODE -> currentSetting.append(TextUtils.translate(TRANSLATE_TYPE.MODE,
-                container.getEntity().getMode().toString().toLowerCase(),
+                container.getEntity().getDisplayMode().toString().toLowerCase(),
                 ChatFormatting.WHITE
             ));
             case ACCURACY -> currentSetting.append(TextUtils.translate(TRANSLATE_TYPE.ACCURACY,

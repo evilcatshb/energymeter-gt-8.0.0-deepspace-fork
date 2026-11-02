@@ -47,9 +47,7 @@ loom {
 
 repositories {
     maven("https://maven.parchmentmc.org") // Parchment
-    maven("https://squiddev.cc/maven/") // CC: Tweaked
-    maven("https://maven.blamejared.com") // JEI
-    maven("https://cursemaven.com")
+    maven("https://maven.minecraftforge.net") // Forge artifacts
     mavenLocal()
 }
 
@@ -64,19 +62,25 @@ dependencies {
     // Forge
     forge("net.minecraftforge:forge:$minecraftVersion-$forgeVersion")
 
-    // CC: Tweaked
-    modCompileOnly("cc.tweaked:cc-tweaked-$minecraftVersion-forge:$cctVersion")
+    // Use the exact installed DeepSpace CC:Tweaked API for compile-only integration.
+    modCompileOnly(files("C:/Users/henry/AppData/Roaming/PolyMC/instances/Deepspace v1.0.3/.minecraft/mods/cc-tweaked-1.20.1-forge-1.120.2.jar"))
 
-    // JEI
-    modLocalRuntime("mezz.jei:jei-$minecraftVersion-forge:$jeiVersion") { isTransitive = false }
-
-    // Testing Mods
-    modLocalRuntime("curse.maven:pipez-443900:4713656") // Pipez 1.1.5
-    modLocalRuntime("curse.maven:mekanism-268560:4807067") // Mekanism 10.4.2.16
-    modLocalRuntime("curse.maven:mekanism-generators-268566:4807070") // Mekanism Generators 10.4.2.16
+    // GTCEu is optional at runtime; local JAR is compile-only for the DeepSpace fork.
+    modCompileOnly(files("C:/Users/henry/AppData/Roaming/PolyMC/instances/Deepspace v1.0.3/.minecraft/mods/gtceu-1.20.1-8.0.0.jar"))
 }
 
 tasks {
+    register<JavaExec>("verifyGTMeasurementMath") {
+        dependsOn("testClasses")
+        classpath = sourceSets["test"].runtimeClasspath
+        mainClass.set("com.github.almostreliable.energymeter.compat.gtceu.GTMeasurementMathTest")
+    }
+    register<JavaExec>("verifyGTTransferRouter") {
+        dependsOn("testClasses")
+        classpath = sourceSets["test"].runtimeClasspath
+        mainClass.set("com.github.almostreliable.energymeter.compat.gtceu.GTTransferRouterTest")
+    }
+    named("check") { dependsOn("verifyGTMeasurementMath", "verifyGTTransferRouter") }
     processResources {
         val resourceTargets = listOf("META-INF/mods.toml", "pack.mcmeta")
 
@@ -106,6 +110,7 @@ tasks {
             expand(replaceProperties)
         }
     }
+
 
     withType<JavaCompile> {
         options.encoding = "UTF-8"
